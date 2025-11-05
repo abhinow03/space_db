@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { api } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
@@ -16,21 +16,21 @@ export default function Dashboard() {
     queryKey: ['dashboard-stats'],
     queryFn: async () => {
       const [missions, rockets, agencies, payloads, launches] = await Promise.all([
-        supabase.from('missions').select('*', { count: 'exact' }),
-        supabase.from('rockets').select('*', { count: 'exact' }),
-        supabase.from('agencies').select('*', { count: 'exact' }),
-        supabase.from('payloads').select('*', { count: 'exact' }),
-        supabase.from('launches').select('success', { count: 'exact' }),
+        api.get('/missions'),
+        api.get('/rockets'),
+        api.get('/agencies'),
+        api.get('/payloads'),
+        api.get('/launches'),
       ]);
 
-      const successCount = launches.data?.filter(l => l.success === true).length || 0;
-      const failureCount = launches.data?.filter(l => l.success === false).length || 0;
+      const successCount = launches.filter(l => l.outcome === 'success').length;
+      const failureCount = launches.filter(l => l.outcome === 'failure').length;
 
       return {
-        missions: missions.count || 0,
-        rockets: rockets.count || 0,
-        agencies: agencies.count || 0,
-        payloads: payloads.count || 0,
+        missions: missions.length || 0,
+        rockets: rockets.length || 0,
+        agencies: agencies.length || 0,
+        payloads: payloads.length || 0,
         successCount,
         failureCount,
       };

@@ -1,18 +1,26 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { useRole } from '@/contexts/RoleContext';
 import Sidebar from '@/components/Sidebar';
 import StarField from '@/components/StarField';
 import DataTable from '@/components/DataTable';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { Plus } from 'lucide-react';
+
+const API_BASE = "http://localhost:4000/api";
 
 export default function Agencies() {
   const { role } = useRole();
@@ -27,19 +35,25 @@ export default function Agencies() {
     website: '',
   });
 
+  /* ---------------- FETCH AGENCIES ---------------- */
   const { data: agencies = [] } = useQuery({
     queryKey: ['agencies'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('agencies').select('*').order('name');
-      if (error) throw error;
-      return data;
+      const res = await fetch(`${API_BASE}/agencies`);
+      if (!res.ok) throw new Error("Failed to fetch agencies");
+      return res.json();
     },
   });
 
+  /* ---------------- CREATE AGENCY ---------------- */
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
-      const { error } = await supabase.from('agencies').insert([data]);
-      if (error) throw error;
+      const res = await fetch(`${API_BASE}/agencies`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error("Failed to create agency");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agencies'] });
@@ -47,12 +61,18 @@ export default function Agencies() {
       setIsDialogOpen(false);
       resetForm();
     },
+    onError: (err: any) => toast.error(err.message),
   });
 
+  /* ---------------- UPDATE AGENCY ---------------- */
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      const { error } = await supabase.from('agencies').update(data).eq('id', id);
-      if (error) throw error;
+    mutationFn: async ({ agency_id, data }: { agency_id: number; data: any }) => {
+      const res = await fetch(`${API_BASE}/agencies/${agency_id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error("Failed to update agency");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agencies'] });
@@ -60,19 +80,25 @@ export default function Agencies() {
       setIsDialogOpen(false);
       resetForm();
     },
+    onError: (err: any) => toast.error(err.message),
   });
 
+  /* ---------------- DELETE AGENCY ---------------- */
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from('agencies').delete().eq('id', id);
-      if (error) throw error;
+    mutationFn: async (agency_id: number) => {
+      const res = await fetch(`${API_BASE}/agencies/${agency_id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Failed to delete agency");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agencies'] });
       toast.success('Agency deleted successfully');
     },
+    onError: (err: any) => toast.error(err.message),
   });
 
+  /* ---------------- FORM HANDLING ---------------- */
   const resetForm = () => {
     setFormData({ name: '', country: '', founded_year: '', description: '', website: '' });
     setEditingItem(null);
@@ -81,12 +107,15 @@ export default function Agencies() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const data = {
-      ...formData,
+      name: formData.name,
+      country: formData.country,
       founded_year: formData.founded_year ? parseInt(formData.founded_year) : null,
+      description: formData.description || null,
+      website: formData.website || null,
     };
-    
+
     if (editingItem) {
-      updateMutation.mutate({ id: editingItem.id, data });
+      updateMutation.mutate({ agency_id: editingItem.agency_id, data });
     } else {
       createMutation.mutate(data);
     }
@@ -105,10 +134,27 @@ export default function Agencies() {
   };
 
   const columns = [
+    { key: 'agency_id', label: 'ID' },
     { key: 'name', label: 'Name' },
     { key: 'country', label: 'Country' },
     { key: 'founded_year', label: 'Founded Year' },
-    { key: 'website', label: 'Website', render: (value: string) => value ? <a href={value} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{value}</a> : '-' },
+    {
+      key: 'website',
+      label: 'Website',
+      render: (value: string) =>
+        value ? (
+          <a
+            href={value}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary hover:underline"
+          >
+            {value}
+          </a>
+        ) : (
+          '-'
+        ),
+    },
   ];
 
   const canCreate = role === 'admin' || role === 'scientist';
@@ -117,7 +163,7 @@ export default function Agencies() {
     <div className="flex min-h-screen relative">
       <StarField />
       <Sidebar />
-      
+
       <main className="ml-64 flex-1 p-8 relative z-10">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -128,7 +174,7 @@ export default function Agencies() {
             <h1 className="text-4xl font-bold text-gradient mb-2">Space Agencies</h1>
             <p className="text-muted-foreground">Manage space exploration organizations</p>
           </div>
-          
+
           {canCreate && (
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
@@ -142,7 +188,13 @@ export default function Agencies() {
                   <DialogTitle className="text-2xl text-gradient">
                     {editingItem ? 'Edit Agency' : 'Add New Agency'}
                   </DialogTitle>
+                  <DialogDescription className="text-sm text-muted-foreground">
+                    {editingItem
+                      ? "Modify the agency details below and click 'Update' to save your changes."
+                      : "Provide the agency details below and click 'Create' to add a new record."}
+                  </DialogDescription>
                 </DialogHeader>
+
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div>
                     <Label htmlFor="name">Name *</Label>
@@ -209,7 +261,7 @@ export default function Agencies() {
           onEdit={handleEdit}
           onDelete={(item) => {
             if (confirm('Are you sure you want to delete this agency?')) {
-              deleteMutation.mutate(item.id);
+              deleteMutation.mutate(item.agency_id);
             }
           }}
         />

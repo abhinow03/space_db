@@ -1,18 +1,32 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { useRole } from '@/contexts/RoleContext';
 import Sidebar from '@/components/Sidebar';
 import StarField from '@/components/StarField';
 import DataTable from '@/components/DataTable';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { toast } from 'sonner';
 import { Plus } from 'lucide-react';
+
+const API_BASE = "http://localhost:4000/api";
 
 export default function CrewAssignments() {
   const { role } = useRole();
@@ -26,40 +40,45 @@ export default function CrewAssignments() {
     assignment_date: '',
   });
 
+  /* ---------------- FETCH ASSIGNMENTS ---------------- */
   const { data: assignments = [] } = useQuery({
     queryKey: ['crew_assignments'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('crew_assignments')
-        .select('*, crew_members(name), missions(name)')
-        .order('assignment_date', { ascending: false });
-      if (error) throw error;
-      return data;
+      const res = await fetch(`${API_BASE}/crew_assignments`);
+      if (!res.ok) throw new Error('Failed to fetch assignments');
+      return await res.json();
     },
   });
 
+  /* ---------------- FETCH CREW MEMBERS ---------------- */
   const { data: crewMembers = [] } = useQuery({
     queryKey: ['crew_members'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('crew_members').select('*').order('name');
-      if (error) throw error;
-      return data;
+      const res = await fetch(`${API_BASE}/crew_members`);
+      if (!res.ok) throw new Error('Failed to fetch crew members');
+      return await res.json();
     },
   });
 
+  /* ---------------- FETCH MISSIONS ---------------- */
   const { data: missions = [] } = useQuery({
     queryKey: ['missions'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('missions').select('*').order('name');
-      if (error) throw error;
-      return data;
+      const res = await fetch(`${API_BASE}/missions`);
+      if (!res.ok) throw new Error('Failed to fetch missions');
+      return await res.json();
     },
   });
 
+  /* ---------------- CREATE ASSIGNMENT ---------------- */
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
-      const { error } = await supabase.from('crew_assignments').insert([data]);
-      if (error) throw error;
+      const res = await fetch(`${API_BASE}/crew_assignments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error('Failed to create assignment');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['crew_assignments'] });
@@ -67,12 +86,18 @@ export default function CrewAssignments() {
       setIsDialogOpen(false);
       resetForm();
     },
+    onError: (err: any) => toast.error(err.message),
   });
 
+  /* ---------------- UPDATE ASSIGNMENT ---------------- */
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      const { error } = await supabase.from('crew_assignments').update(data).eq('id', id);
-      if (error) throw error;
+    mutationFn: async ({ assignment_id, data }: { assignment_id: number; data: any }) => {
+      const res = await fetch(`${API_BASE}/crew_assignments/${assignment_id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error('Failed to update assignment');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['crew_assignments'] });
@@ -80,19 +105,25 @@ export default function CrewAssignments() {
       setIsDialogOpen(false);
       resetForm();
     },
+    onError: (err: any) => toast.error(err.message),
   });
 
+  /* ---------------- DELETE ASSIGNMENT ---------------- */
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from('crew_assignments').delete().eq('id', id);
-      if (error) throw error;
+    mutationFn: async (assignment_id: number) => {
+      const res = await fetch(`${API_BASE}/crew_assignments/${assignment_id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error('Failed to delete assignment');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['crew_assignments'] });
       toast.success('Assignment deleted successfully');
     },
+    onError: (err: any) => toast.error(err.message),
   });
 
+  /* ---------------- FORM HANDLING ---------------- */
   const resetForm = () => {
     setFormData({ crew_member_id: '', mission_id: '', role: '', assignment_date: '' });
     setEditingItem(null);
@@ -106,9 +137,9 @@ export default function CrewAssignments() {
       role: formData.role,
       assignment_date: formData.assignment_date || null,
     };
-    
+
     if (editingItem) {
-      updateMutation.mutate({ id: editingItem.id, data });
+      updateMutation.mutate({ assignment_id: editingItem.assignment_id, data });
     } else {
       createMutation.mutate(data);
     }
@@ -126,10 +157,15 @@ export default function CrewAssignments() {
   };
 
   const columns = [
-    { key: 'crew_members', label: 'Crew Member', render: (val: any) => val?.name || '-' },
-    { key: 'missions', label: 'Mission', render: (val: any) => val?.name || '-' },
+    { key: 'assignment_id', label: 'ID' },
+    { key: 'crew_member_id', label: 'Crew Member ID' },
+    { key: 'mission_id', label: 'Mission ID' },
     { key: 'role', label: 'Role' },
-    { key: 'assignment_date', label: 'Assignment Date', render: (val: string) => val ? new Date(val).toLocaleDateString() : '-' },
+    {
+      key: 'assignment_date',
+      label: 'Assignment Date',
+      render: (val: string) => (val ? new Date(val).toLocaleDateString() : '-'),
+    },
   ];
 
   const canCreate = role === 'admin' || role === 'scientist';
@@ -138,7 +174,7 @@ export default function CrewAssignments() {
     <div className="flex min-h-screen relative">
       <StarField />
       <Sidebar />
-      
+
       <main className="ml-64 flex-1 p-8 relative z-10">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -149,7 +185,7 @@ export default function CrewAssignments() {
             <h1 className="text-4xl font-bold text-gradient mb-2">Crew Assignments</h1>
             <p className="text-muted-foreground">Assign crew members to missions</p>
           </div>
-          
+
           {canCreate && (
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
@@ -158,70 +194,93 @@ export default function CrewAssignments() {
                   Add Assignment
                 </Button>
               </DialogTrigger>
-              <DialogContent className="glass-panel">
+
+              <DialogContent className="glass-panel max-w-2xl">
                 <DialogHeader>
                   <DialogTitle className="text-2xl text-gradient">
                     {editingItem ? 'Edit Assignment' : 'Add New Assignment'}
                   </DialogTitle>
+                  <DialogDescription className="text-sm text-muted-foreground">
+                    {editingItem
+                      ? "Modify the details below and click 'Update' to save changes."
+                      : "Provide the assignment details below and click 'Create' to add a new record."}
+                  </DialogDescription>
                 </DialogHeader>
-                <form onSubmit={handleSubmit} className="space-y-4">
+
+                <form onSubmit={handleSubmit} className="space-y-4 mt-4">
                   <div>
                     <Label htmlFor="crew_member_id">Crew Member *</Label>
                     <Select
                       value={formData.crew_member_id}
-                      onValueChange={(value) => setFormData({ ...formData, crew_member_id: value })}
+                      onValueChange={(value) =>
+                        setFormData({ ...formData, crew_member_id: value })
+                      }
                       required
                     >
                       <SelectTrigger className="bg-input border-border/50">
                         <SelectValue placeholder="Select crew member" />
                       </SelectTrigger>
                       <SelectContent className="glass-panel">
-                        {crewMembers.map((c) => (
-                          <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                        {crewMembers.map((c: any) => (
+                          <SelectItem key={c.crew_member_id} value={c.crew_member_id}>
+                            {c.name}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
+
                   <div>
                     <Label htmlFor="mission_id">Mission *</Label>
                     <Select
                       value={formData.mission_id}
-                      onValueChange={(value) => setFormData({ ...formData, mission_id: value })}
+                      onValueChange={(value) =>
+                        setFormData({ ...formData, mission_id: value })
+                      }
                       required
                     >
                       <SelectTrigger className="bg-input border-border/50">
                         <SelectValue placeholder="Select mission" />
                       </SelectTrigger>
                       <SelectContent className="glass-panel">
-                        {missions.map((m) => (
-                          <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                        {missions.map((m: any) => (
+                          <SelectItem key={m.mission_id} value={m.mission_id}>
+                            {m.name}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
+
                   <div>
                     <Label htmlFor="role">Role *</Label>
                     <Input
                       id="role"
                       value={formData.role}
-                      onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, role: e.target.value })
+                      }
                       required
                       placeholder="e.g., Commander, Pilot, Engineer"
                       className="bg-input border-border/50"
                     />
                   </div>
+
                   <div>
                     <Label htmlFor="assignment_date">Assignment Date</Label>
                     <Input
                       id="assignment_date"
                       type="date"
                       value={formData.assignment_date}
-                      onChange={(e) => setFormData({ ...formData, assignment_date: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, assignment_date: e.target.value })
+                      }
                       className="bg-input border-border/50"
                     />
                   </div>
+
                   <Button type="submit" className="w-full neon-glow">
-                    {editingItem ? 'Update' : 'Create'} Assignment
+                    {editingItem ? 'Update Assignment' : 'Create Assignment'}
                   </Button>
                 </form>
               </DialogContent>
@@ -235,7 +294,7 @@ export default function CrewAssignments() {
           onEdit={handleEdit}
           onDelete={(item) => {
             if (confirm('Are you sure you want to delete this assignment?')) {
-              deleteMutation.mutate(item.id);
+              deleteMutation.mutate(item.assignment_id);
             }
           }}
         />

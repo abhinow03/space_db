@@ -1,19 +1,33 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { useRole } from '@/contexts/RoleContext';
 import Sidebar from '@/components/Sidebar';
 import StarField from '@/components/StarField';
 import DataTable from '@/components/DataTable';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { toast } from 'sonner';
 import { Plus } from 'lucide-react';
+
+const API_BASE = 'http://localhost:4000/api';
 
 export default function Launches() {
   const { role } = useRole();
@@ -30,43 +44,45 @@ export default function Launches() {
     notes: '',
   });
 
+  /* ---------------- FETCH LAUNCHES ---------------- */
   const { data: launches = [] } = useQuery({
     queryKey: ['launches'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('launches')
-        .select('*, missions(name), rocket_variants(variant_name)')
-        .order('launch_date', { ascending: false });
-      if (error) throw error;
-      return data;
+      const res = await fetch(`${API_BASE}/launches`);
+      if (!res.ok) throw new Error('Failed to fetch launches');
+      return await res.json();
     },
   });
 
+  /* ---------------- FETCH MISSIONS ---------------- */
   const { data: missions = [] } = useQuery({
     queryKey: ['missions'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('missions').select('*').order('name');
-      if (error) throw error;
-      return data;
+      const res = await fetch(`${API_BASE}/missions`);
+      if (!res.ok) throw new Error('Failed to fetch missions');
+      return await res.json();
     },
   });
 
+  /* ---------------- FETCH ROCKET VARIANTS ---------------- */
   const { data: variants = [] } = useQuery({
     queryKey: ['rocket_variants'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('rocket_variants')
-        .select('*, rockets(name)')
-        .order('variant_name');
-      if (error) throw error;
-      return data;
+      const res = await fetch(`${API_BASE}/rocket_variants`);
+      if (!res.ok) throw new Error('Failed to fetch rocket variants');
+      return await res.json();
     },
   });
 
+  /* ---------------- CREATE LAUNCH ---------------- */
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
-      const { error } = await supabase.from('launches').insert([data]);
-      if (error) throw error;
+      const res = await fetch(`${API_BASE}/launches`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error('Failed to create launch');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['launches'] });
@@ -74,12 +90,18 @@ export default function Launches() {
       setIsDialogOpen(false);
       resetForm();
     },
+    onError: (err: any) => toast.error(err.message),
   });
 
+  /* ---------------- UPDATE LAUNCH ---------------- */
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      const { error } = await supabase.from('launches').update(data).eq('id', id);
-      if (error) throw error;
+    mutationFn: async ({ launch_id, data }: { launch_id: number; data: any }) => {
+      const res = await fetch(`${API_BASE}/launches/${launch_id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error('Failed to update launch');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['launches'] });
@@ -87,21 +109,35 @@ export default function Launches() {
       setIsDialogOpen(false);
       resetForm();
     },
+    onError: (err: any) => toast.error(err.message),
   });
 
+  /* ---------------- DELETE LAUNCH ---------------- */
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from('launches').delete().eq('id', id);
-      if (error) throw error;
+    mutationFn: async (launch_id: number) => {
+      const res = await fetch(`${API_BASE}/launches/${launch_id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error('Failed to delete launch');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['launches'] });
       toast.success('Launch deleted successfully');
     },
+    onError: (err: any) => toast.error(err.message),
   });
 
+  /* ---------------- FORM HANDLING ---------------- */
   const resetForm = () => {
-    setFormData({ mission_id: '', rocket_variant_id: '', launch_date: '', launch_site: '', status: 'scheduled', success: '', notes: '' });
+    setFormData({
+      mission_id: '',
+      rocket_variant_id: '',
+      launch_date: '',
+      launch_site: '',
+      status: 'scheduled',
+      success: '',
+      notes: '',
+    });
     setEditingItem(null);
   };
 
@@ -116,9 +152,9 @@ export default function Launches() {
       success: formData.success === '' ? null : formData.success === 'true',
       notes: formData.notes || null,
     };
-    
+
     if (editingItem) {
-      updateMutation.mutate({ id: editingItem.id, data });
+      updateMutation.mutate({ launch_id: editingItem.launch_id, data });
     } else {
       createMutation.mutate(data);
     }
@@ -139,11 +175,13 @@ export default function Launches() {
   };
 
   const columns = [
+    { key: 'launch_id', label: 'ID' },
     { key: 'launch_date', label: 'Launch Date', render: (val: string) => new Date(val).toLocaleString() },
-    { key: 'missions', label: 'Mission', render: (val: any) => val?.name || '-' },
-    { key: 'rocket_variants', label: 'Rocket', render: (val: any) => val?.variant_name || '-' },
-    { key: 'launch_site', label: 'Site' },
-    { key: 'success', label: 'Success', render: (val: boolean | null) => val === null ? '-' : val ? '✅' : '❌' },
+    { key: 'mission_id', label: 'Mission ID' },
+    { key: 'rocket_variant_id', label: 'Rocket Variant ID' },
+    { key: 'launch_site', label: 'Launch Site' },
+    { key: 'status', label: 'Status', render: (val: string) => val || '-' },
+    { key: 'success', label: 'Success', render: (val: boolean | null) => (val === null ? '-' : val ? '✅' : '❌') },
   ];
 
   const canCreate = role === 'admin' || role === 'scientist';
@@ -152,7 +190,7 @@ export default function Launches() {
     <div className="flex min-h-screen relative">
       <StarField />
       <Sidebar />
-      
+
       <main className="ml-64 flex-1 p-8 relative z-10">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -163,7 +201,7 @@ export default function Launches() {
             <h1 className="text-4xl font-bold text-gradient mb-2">Launches</h1>
             <p className="text-muted-foreground">Rocket launch events and outcomes</p>
           </div>
-          
+
           {canCreate && (
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
@@ -172,13 +210,20 @@ export default function Launches() {
                   Add Launch
                 </Button>
               </DialogTrigger>
+
               <DialogContent className="glass-panel max-w-2xl">
                 <DialogHeader>
                   <DialogTitle className="text-2xl text-gradient">
                     {editingItem ? 'Edit Launch' : 'Add New Launch'}
                   </DialogTitle>
+                  <DialogDescription className="text-sm text-muted-foreground">
+                    {editingItem
+                      ? "Modify the details below and click 'Update' to save changes."
+                      : "Provide the launch details below and click 'Create' to add a new record."}
+                  </DialogDescription>
                 </DialogHeader>
-                <form onSubmit={handleSubmit} className="space-y-4">
+
+                <form onSubmit={handleSubmit} className="space-y-4 mt-4">
                   <div>
                     <Label htmlFor="mission_id">Mission</Label>
                     <Select
@@ -189,52 +234,64 @@ export default function Launches() {
                         <SelectValue placeholder="Select mission" />
                       </SelectTrigger>
                       <SelectContent className="glass-panel">
-                        {missions.map((m) => (
-                          <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="rocket_variant_id">Rocket Variant</Label>
-                    <Select
-                      value={formData.rocket_variant_id}
-                      onValueChange={(value) => setFormData({ ...formData, rocket_variant_id: value })}
-                    >
-                      <SelectTrigger className="bg-input border-border/50">
-                        <SelectValue placeholder="Select rocket variant" />
-                      </SelectTrigger>
-                      <SelectContent className="glass-panel">
-                        {variants.map((v) => (
-                          <SelectItem key={v.id} value={v.id}>
-                            {v.rockets?.name} - {v.variant_name}
+                        {missions.map((m: any) => (
+                          <SelectItem key={m.mission_id} value={m.mission_id}>
+                            {m.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
+
+                  <div>
+                    <Label htmlFor="rocket_variant_id">Rocket Variant</Label>
+                    <Select
+                      value={formData.rocket_variant_id}
+                      onValueChange={(value) =>
+                        setFormData({ ...formData, rocket_variant_id: value })
+                      }
+                    >
+                      <SelectTrigger className="bg-input border-border/50">
+                        <SelectValue placeholder="Select rocket variant" />
+                      </SelectTrigger>
+                      <SelectContent className="glass-panel">
+                        {variants.map((v: any) => (
+                          <SelectItem key={v.rocket_variant_id} value={v.rocket_variant_id}>
+                            {v.variant_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
                   <div>
                     <Label htmlFor="launch_date">Launch Date *</Label>
                     <Input
                       id="launch_date"
                       type="datetime-local"
                       value={formData.launch_date}
-                      onChange={(e) => setFormData({ ...formData, launch_date: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, launch_date: e.target.value })
+                      }
                       required
                       className="bg-input border-border/50"
                     />
                   </div>
+
                   <div>
                     <Label htmlFor="launch_site">Launch Site *</Label>
                     <Input
                       id="launch_site"
                       value={formData.launch_site}
-                      onChange={(e) => setFormData({ ...formData, launch_site: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, launch_site: e.target.value })
+                      }
                       required
                       placeholder="e.g., Kennedy Space Center"
                       className="bg-input border-border/50"
                     />
                   </div>
+
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="status">Status</Label>
@@ -252,6 +309,7 @@ export default function Launches() {
                         </SelectContent>
                       </Select>
                     </div>
+
                     <div>
                       <Label htmlFor="success">Success</Label>
                       <Select
@@ -268,6 +326,7 @@ export default function Launches() {
                       </Select>
                     </div>
                   </div>
+
                   <div>
                     <Label htmlFor="notes">Notes</Label>
                     <Textarea
@@ -278,8 +337,9 @@ export default function Launches() {
                       rows={3}
                     />
                   </div>
+
                   <Button type="submit" className="w-full neon-glow">
-                    {editingItem ? 'Update' : 'Create'} Launch
+                    {editingItem ? 'Update Launch' : 'Create Launch'}
                   </Button>
                 </form>
               </DialogContent>
@@ -293,7 +353,7 @@ export default function Launches() {
           onEdit={handleEdit}
           onDelete={(item) => {
             if (confirm('Are you sure you want to delete this launch?')) {
-              deleteMutation.mutate(item.id);
+              deleteMutation.mutate(item.launch_id);
             }
           }}
         />

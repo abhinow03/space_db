@@ -1,19 +1,33 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { useRole } from '@/contexts/RoleContext';
 import Sidebar from '@/components/Sidebar';
 import StarField from '@/components/StarField';
 import DataTable from '@/components/DataTable';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { toast } from 'sonner';
 import { Plus } from 'lucide-react';
+
+const API_BASE = 'http://localhost:4000/api';
 
 export default function Rockets() {
   const { role } = useRole();
@@ -28,31 +42,35 @@ export default function Rockets() {
     mass_kg: '',
   });
 
+  /* ---------------- FETCH ROCKETS ---------------- */
   const { data: rockets = [] } = useQuery({
     queryKey: ['rockets'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('rockets')
-        .select('*, manufacturers(name)')
-        .order('name');
-      if (error) throw error;
-      return data;
+      const res = await fetch(`${API_BASE}/rockets`);
+      if (!res.ok) throw new Error('Failed to fetch rockets');
+      return await res.json();
     },
   });
 
+  /* ---------------- FETCH MANUFACTURERS ---------------- */
   const { data: manufacturers = [] } = useQuery({
     queryKey: ['manufacturers'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('manufacturers').select('*').order('name');
-      if (error) throw error;
-      return data;
+      const res = await fetch(`${API_BASE}/manufacturers`);
+      if (!res.ok) throw new Error('Failed to fetch manufacturers');
+      return await res.json();
     },
   });
 
+  /* ---------------- CREATE ROCKET ---------------- */
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
-      const { error } = await supabase.from('rockets').insert([data]);
-      if (error) throw error;
+      const res = await fetch(`${API_BASE}/rockets`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error('Failed to create rocket');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rockets'] });
@@ -60,12 +78,18 @@ export default function Rockets() {
       setIsDialogOpen(false);
       resetForm();
     },
+    onError: (err: any) => toast.error(err.message),
   });
 
+  /* ---------------- UPDATE ROCKET ---------------- */
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      const { error } = await supabase.from('rockets').update(data).eq('id', id);
-      if (error) throw error;
+    mutationFn: async ({ rocket_id, data }: { rocket_id: number; data: any }) => {
+      const res = await fetch(`${API_BASE}/rockets/${rocket_id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error('Failed to update rocket');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rockets'] });
@@ -73,21 +97,33 @@ export default function Rockets() {
       setIsDialogOpen(false);
       resetForm();
     },
+    onError: (err: any) => toast.error(err.message),
   });
 
+  /* ---------------- DELETE ROCKET ---------------- */
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from('rockets').delete().eq('id', id);
-      if (error) throw error;
+    mutationFn: async (rocket_id: number) => {
+      const res = await fetch(`${API_BASE}/rockets/${rocket_id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error('Failed to delete rocket');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rockets'] });
       toast.success('Rocket deleted successfully');
     },
+    onError: (err: any) => toast.error(err.message),
   });
 
+  /* ---------------- FORM HANDLING ---------------- */
   const resetForm = () => {
-    setFormData({ name: '', manufacturer_id: '', description: '', height_meters: '', mass_kg: '' });
+    setFormData({
+      name: '',
+      manufacturer_id: '',
+      description: '',
+      height_meters: '',
+      mass_kg: '',
+    });
     setEditingItem(null);
   };
 
@@ -100,9 +136,9 @@ export default function Rockets() {
       height_meters: formData.height_meters ? parseFloat(formData.height_meters) : null,
       mass_kg: formData.mass_kg ? parseFloat(formData.mass_kg) : null,
     };
-    
+
     if (editingItem) {
-      updateMutation.mutate({ id: editingItem.id, data });
+      updateMutation.mutate({ rocket_id: editingItem.rocket_id, data });
     } else {
       createMutation.mutate(data);
     }
@@ -121,10 +157,19 @@ export default function Rockets() {
   };
 
   const columns = [
+    { key: 'rocket_id', label: 'ID' },
     { key: 'name', label: 'Rocket Name' },
-    { key: 'manufacturers', label: 'Manufacturer', render: (val: any) => val?.name || '-' },
-    { key: 'height_meters', label: 'Height (m)', render: (val: any) => val ? `${val}m` : '-' },
-    { key: 'mass_kg', label: 'Mass (kg)', render: (val: any) => val ? `${val}kg` : '-' },
+    { key: 'manufacturer_id', label: 'Manufacturer ID' },
+    {
+      key: 'height_meters',
+      label: 'Height (m)',
+      render: (val: number) => (val ? `${val} m` : '-'),
+    },
+    {
+      key: 'mass_kg',
+      label: 'Mass (kg)',
+      render: (val: number) => (val ? `${val} kg` : '-'),
+    },
   ];
 
   const canCreate = role === 'admin' || role === 'scientist';
@@ -133,7 +178,7 @@ export default function Rockets() {
     <div className="flex min-h-screen relative">
       <StarField />
       <Sidebar />
-      
+
       <main className="ml-64 flex-1 p-8 relative z-10">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -144,7 +189,7 @@ export default function Rockets() {
             <h1 className="text-4xl font-bold text-gradient mb-2">Rockets</h1>
             <p className="text-muted-foreground">Launch vehicles and rocket systems</p>
           </div>
-          
+
           {canCreate && (
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
@@ -153,13 +198,20 @@ export default function Rockets() {
                   Add Rocket
                 </Button>
               </DialogTrigger>
+
               <DialogContent className="glass-panel max-w-2xl">
                 <DialogHeader>
                   <DialogTitle className="text-2xl text-gradient">
                     {editingItem ? 'Edit Rocket' : 'Add New Rocket'}
                   </DialogTitle>
+                  <DialogDescription className="text-sm text-muted-foreground">
+                    {editingItem
+                      ? "Modify the rocket details below and click 'Update' to save changes."
+                      : "Provide the rocket details below and click 'Create' to add a new record."}
+                  </DialogDescription>
                 </DialogHeader>
-                <form onSubmit={handleSubmit} className="space-y-4">
+
+                <form onSubmit={handleSubmit} className="space-y-4 mt-4">
                   <div>
                     <Label htmlFor="name">Rocket Name *</Label>
                     <Input
@@ -170,31 +222,39 @@ export default function Rockets() {
                       className="bg-input border-border/50"
                     />
                   </div>
+
                   <div>
                     <Label htmlFor="manufacturer_id">Manufacturer</Label>
                     <Select
                       value={formData.manufacturer_id}
-                      onValueChange={(value) => setFormData({ ...formData, manufacturer_id: value })}
+                      onValueChange={(value) =>
+                        setFormData({ ...formData, manufacturer_id: value })
+                      }
                     >
                       <SelectTrigger className="bg-input border-border/50">
                         <SelectValue placeholder="Select manufacturer" />
                       </SelectTrigger>
                       <SelectContent className="glass-panel">
-                        {manufacturers.map((m) => (
-                          <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                        {manufacturers.map((m: any) => (
+                          <SelectItem key={m.manufacturer_id} value={m.manufacturer_id}>
+                            {m.name}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
+
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label htmlFor="height_meters">Height (meters)</Label>
+                      <Label htmlFor="height_meters">Height (m)</Label>
                       <Input
                         id="height_meters"
                         type="number"
                         step="0.01"
                         value={formData.height_meters}
-                        onChange={(e) => setFormData({ ...formData, height_meters: e.target.value })}
+                        onChange={(e) =>
+                          setFormData({ ...formData, height_meters: e.target.value })
+                        }
                         className="bg-input border-border/50"
                       />
                     </div>
@@ -205,23 +265,29 @@ export default function Rockets() {
                         type="number"
                         step="0.01"
                         value={formData.mass_kg}
-                        onChange={(e) => setFormData({ ...formData, mass_kg: e.target.value })}
+                        onChange={(e) =>
+                          setFormData({ ...formData, mass_kg: e.target.value })
+                        }
                         className="bg-input border-border/50"
                       />
                     </div>
                   </div>
+
                   <div>
                     <Label htmlFor="description">Description</Label>
                     <Textarea
                       id="description"
                       value={formData.description}
-                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, description: e.target.value })
+                      }
                       className="bg-input border-border/50"
                       rows={4}
                     />
                   </div>
+
                   <Button type="submit" className="w-full neon-glow">
-                    {editingItem ? 'Update' : 'Create'} Rocket
+                    {editingItem ? 'Update Rocket' : 'Create Rocket'}
                   </Button>
                 </form>
               </DialogContent>
@@ -235,7 +301,7 @@ export default function Rockets() {
           onEdit={handleEdit}
           onDelete={(item) => {
             if (confirm('Are you sure you want to delete this rocket?')) {
-              deleteMutation.mutate(item.id);
+              deleteMutation.mutate(item.rocket_id);
             }
           }}
         />

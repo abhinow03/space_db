@@ -1,17 +1,25 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { useRole } from '@/contexts/RoleContext';
 import Sidebar from '@/components/Sidebar';
 import StarField from '@/components/StarField';
 import DataTable from '@/components/DataTable';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { Plus } from 'lucide-react';
+
+const API_BASE = "http://localhost:4000/api";
 
 export default function Manufacturers() {
   const { role } = useRole();
@@ -25,19 +33,25 @@ export default function Manufacturers() {
     specialization: '',
   });
 
+  /* ---------------- FETCH MANUFACTURERS ---------------- */
   const { data: manufacturers = [] } = useQuery({
     queryKey: ['manufacturers'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('manufacturers').select('*').order('name');
-      if (error) throw error;
-      return data;
+      const res = await fetch(`${API_BASE}/manufacturers`);
+      if (!res.ok) throw new Error("Failed to fetch manufacturers");
+      return res.json();
     },
   });
 
+  /* ---------------- CREATE MANUFACTURER ---------------- */
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
-      const { error } = await supabase.from('manufacturers').insert([data]);
-      if (error) throw error;
+      const res = await fetch(`${API_BASE}/manufacturers`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error("Failed to create manufacturer");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['manufacturers'] });
@@ -45,12 +59,18 @@ export default function Manufacturers() {
       setIsDialogOpen(false);
       resetForm();
     },
+    onError: (err: any) => toast.error(err.message),
   });
 
+  /* ---------------- UPDATE MANUFACTURER ---------------- */
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      const { error } = await supabase.from('manufacturers').update(data).eq('id', id);
-      if (error) throw error;
+    mutationFn: async ({ manufacturer_id, data }: { manufacturer_id: number; data: any }) => {
+      const res = await fetch(`${API_BASE}/manufacturers/${manufacturer_id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error("Failed to update manufacturer");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['manufacturers'] });
@@ -58,33 +78,46 @@ export default function Manufacturers() {
       setIsDialogOpen(false);
       resetForm();
     },
+    onError: (err: any) => toast.error(err.message),
   });
 
+  /* ---------------- DELETE MANUFACTURER ---------------- */
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from('manufacturers').delete().eq('id', id);
-      if (error) throw error;
+    mutationFn: async (manufacturer_id: number) => {
+      const res = await fetch(`${API_BASE}/manufacturers/${manufacturer_id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Failed to delete manufacturer");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['manufacturers'] });
       toast.success('Manufacturer deleted successfully');
     },
+    onError: (err: any) => toast.error(err.message),
   });
 
+  /* ---------------- FORM HANDLING ---------------- */
   const resetForm = () => {
-    setFormData({ name: '', country: '', founded_year: '', specialization: '' });
+    setFormData({
+      name: '',
+      country: '',
+      founded_year: '',
+      specialization: '',
+    });
     setEditingItem(null);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const data = {
-      ...formData,
+      name: formData.name,
+      country: formData.country || null,
       founded_year: formData.founded_year ? parseInt(formData.founded_year) : null,
+      specialization: formData.specialization || null,
     };
-    
+
     if (editingItem) {
-      updateMutation.mutate({ id: editingItem.id, data });
+      updateMutation.mutate({ manufacturer_id: editingItem.manufacturer_id, data });
     } else {
       createMutation.mutate(data);
     }
@@ -94,7 +127,7 @@ export default function Manufacturers() {
     setEditingItem(item);
     setFormData({
       name: item.name,
-      country: item.country,
+      country: item.country || '',
       founded_year: item.founded_year?.toString() || '',
       specialization: item.specialization || '',
     });
@@ -102,6 +135,7 @@ export default function Manufacturers() {
   };
 
   const columns = [
+    { key: 'manufacturer_id', label: 'ID' },
     { key: 'name', label: 'Name' },
     { key: 'country', label: 'Country' },
     { key: 'founded_year', label: 'Founded Year' },
@@ -114,7 +148,7 @@ export default function Manufacturers() {
     <div className="flex min-h-screen relative">
       <StarField />
       <Sidebar />
-      
+
       <main className="ml-64 flex-1 p-8 relative z-10">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -125,7 +159,7 @@ export default function Manufacturers() {
             <h1 className="text-4xl font-bold text-gradient mb-2">Manufacturers</h1>
             <p className="text-muted-foreground">Rocket and spacecraft manufacturers</p>
           </div>
-          
+
           {canCreate && (
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
@@ -134,12 +168,18 @@ export default function Manufacturers() {
                   Add Manufacturer
                 </Button>
               </DialogTrigger>
-              <DialogContent className="glass-panel">
+              <DialogContent className="glass-panel max-w-2xl">
                 <DialogHeader>
                   <DialogTitle className="text-2xl text-gradient">
                     {editingItem ? 'Edit Manufacturer' : 'Add New Manufacturer'}
                   </DialogTitle>
+                  <DialogDescription className="text-sm text-muted-foreground">
+                    {editingItem
+                      ? "Modify the manufacturer details below and click 'Update' to save your changes."
+                      : "Provide the manufacturer details below and click 'Create' to add a new record."}
+                  </DialogDescription>
                 </DialogHeader>
+
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div>
                     <Label htmlFor="name">Name *</Label>
@@ -151,6 +191,7 @@ export default function Manufacturers() {
                       className="bg-input border-border/50"
                     />
                   </div>
+
                   <div>
                     <Label htmlFor="country">Country *</Label>
                     <Input
@@ -161,6 +202,7 @@ export default function Manufacturers() {
                       className="bg-input border-border/50"
                     />
                   </div>
+
                   <div>
                     <Label htmlFor="founded_year">Founded Year</Label>
                     <Input
@@ -171,6 +213,7 @@ export default function Manufacturers() {
                       className="bg-input border-border/50"
                     />
                   </div>
+
                   <div>
                     <Label htmlFor="specialization">Specialization</Label>
                     <Input
@@ -180,6 +223,7 @@ export default function Manufacturers() {
                       className="bg-input border-border/50"
                     />
                   </div>
+
                   <Button type="submit" className="w-full neon-glow">
                     {editingItem ? 'Update' : 'Create'} Manufacturer
                   </Button>
@@ -195,7 +239,7 @@ export default function Manufacturers() {
           onEdit={handleEdit}
           onDelete={(item) => {
             if (confirm('Are you sure you want to delete this manufacturer?')) {
-              deleteMutation.mutate(item.id);
+              deleteMutation.mutate(item.manufacturer_id);
             }
           }}
         />
