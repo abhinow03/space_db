@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { useRole } from '@/contexts/RoleContext';
 import Sidebar from '@/components/Sidebar';
 import StarField from '@/components/StarField';
@@ -30,16 +29,20 @@ export default function Crew() {
   const { data: crew = [] } = useQuery({
     queryKey: ['crew_members'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('crew_members').select('*').order('name');
-      if (error) throw error;
-      return data;
+      const res = await fetch('/api/crew_members');
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
     },
   });
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
-      const { error } = await supabase.from('crew_members').insert([data]);
-      if (error) throw error;
+      const res = await fetch('/api/crew_members', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error(await res.text());
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['crew_members'] });

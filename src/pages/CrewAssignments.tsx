@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { useRole } from '@/contexts/RoleContext';
 import Sidebar from '@/components/Sidebar';
 import StarField from '@/components/StarField';
@@ -29,37 +28,38 @@ export default function CrewAssignments() {
   const { data: assignments = [] } = useQuery({
     queryKey: ['crew_assignments'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('crew_assignments')
-        .select('*, crew_members(name), missions(name)')
-        .order('assignment_date', { ascending: false });
-      if (error) throw error;
-      return data;
+      const res = await fetch('/api/crew_assignments');
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
     },
   });
 
   const { data: crewMembers = [] } = useQuery({
     queryKey: ['crew_members'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('crew_members').select('*').order('name');
-      if (error) throw error;
-      return data;
+      const res = await fetch('/api/crew_members');
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
     },
   });
 
   const { data: missions = [] } = useQuery({
     queryKey: ['missions'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('missions').select('*').order('name');
-      if (error) throw error;
-      return data;
+      const res = await fetch('/api/missions');
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
     },
   });
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
-      const { error } = await supabase.from('crew_assignments').insert([data]);
-      if (error) throw error;
+      const res = await fetch('/api/crew_assignments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error(await res.text());
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['crew_assignments'] });
@@ -71,8 +71,12 @@ export default function CrewAssignments() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      const { error } = await supabase.from('crew_assignments').update(data).eq('id', id);
-      if (error) throw error;
+      const res = await fetch(`/api/crew_assignments/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error(await res.text());
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['crew_assignments'] });
@@ -84,8 +88,8 @@ export default function CrewAssignments() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('crew_assignments').delete().eq('id', id);
-      if (error) throw error;
+      const res = await fetch(`/api/crew_assignments/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(await res.text());
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['crew_assignments'] });

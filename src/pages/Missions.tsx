@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { useRole } from '@/contexts/RoleContext';
 import Sidebar from '@/components/Sidebar';
 import StarField from '@/components/StarField';
@@ -34,28 +33,38 @@ export default function Missions() {
   const { data: missions = [] } = useQuery({
     queryKey: ['missions'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('missions')
-        .select('*, agencies(name)')
-        .order('name');
-      if (error) throw error;
-      return data;
+      const res = await fetch('/api/missions');
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
     },
   });
 
   const { data: agencies = [] } = useQuery({
     queryKey: ['agencies'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('agencies').select('*').order('name');
-      if (error) throw error;
-      return data;
+      const res = await fetch('/api/agencies');
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+  });
+
+  const { data: variants = [] } = useQuery({
+    queryKey: ['rocket_variants'],
+    queryFn: async () => {
+      const res = await fetch('/api/rocket_variants');
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
     },
   });
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
-      const { error } = await supabase.from('missions').insert([data]);
-      if (error) throw error;
+      const res = await fetch('/api/missions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error(await res.text());
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['missions'] });
@@ -67,8 +76,12 @@ export default function Missions() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      const { error } = await supabase.from('missions').update(data).eq('id', id);
-      if (error) throw error;
+      const res = await fetch(`/api/missions/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error(await res.text());
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['missions'] });
@@ -80,8 +93,8 @@ export default function Missions() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('missions').delete().eq('id', id);
-      if (error) throw error;
+      const res = await fetch(`/api/missions/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(await res.text());
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['missions'] });

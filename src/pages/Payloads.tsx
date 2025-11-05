@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+// removed supabase client - using backend API endpoints instead
 import { useRole } from '@/contexts/RoleContext';
 import Sidebar from '@/components/Sidebar';
 import StarField from '@/components/StarField';
@@ -32,31 +32,29 @@ export default function Payloads() {
   const { data: payloads = [] } = useQuery({
     queryKey: ['payloads'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('payloads')
-        .select('*, launches(launch_site, missions(name))')
-        .order('name');
-      if (error) throw error;
-      return data;
+      const res = await fetch('/api/payloads');
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
     },
   });
 
   const { data: launches = [] } = useQuery({
     queryKey: ['launches'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('launches')
-        .select('*, missions(name)')
-        .order('launch_date', { ascending: false });
-      if (error) throw error;
-      return data;
+      const res = await fetch('/api/launches');
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
     },
   });
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
-      const { error } = await supabase.from('payloads').insert([data]);
-      if (error) throw error;
+      const res = await fetch('/api/payloads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error(await res.text());
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['payloads'] });
@@ -68,8 +66,12 @@ export default function Payloads() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      const { error } = await supabase.from('payloads').update(data).eq('id', id);
-      if (error) throw error;
+      const res = await fetch(`/api/payloads/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error(await res.text());
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['payloads'] });
@@ -81,8 +83,8 @@ export default function Payloads() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('payloads').delete().eq('id', id);
-      if (error) throw error;
+      const res = await fetch(`/api/payloads/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(await res.text());
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['payloads'] });

@@ -1,7 +1,6 @@
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
@@ -12,28 +11,15 @@ import StarField from '@/components/StarField';
 export default function Dashboard() {
   const navigate = useNavigate();
 
+  // Fetch aggregated stats from your backend which connects to MySQL.
+  // Implement a backend endpoint GET /api/dashboard-stats that returns:
+  // { missions, rockets, agencies, payloads, successCount, failureCount }
   const { data: stats } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: async () => {
-      const [missions, rockets, agencies, payloads, launches] = await Promise.all([
-        supabase.from('missions').select('*', { count: 'exact' }),
-        supabase.from('rockets').select('*', { count: 'exact' }),
-        supabase.from('agencies').select('*', { count: 'exact' }),
-        supabase.from('payloads').select('*', { count: 'exact' }),
-        supabase.from('launches').select('success', { count: 'exact' }),
-      ]);
-
-      const successCount = launches.data?.filter(l => l.success === true).length || 0;
-      const failureCount = launches.data?.filter(l => l.success === false).length || 0;
-
-      return {
-        missions: missions.count || 0,
-        rockets: rockets.count || 0,
-        agencies: agencies.count || 0,
-        payloads: payloads.count || 0,
-        successCount,
-        failureCount,
-      };
+      const res = await fetch('/api/dashboard-stats');
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
     },
   });
 

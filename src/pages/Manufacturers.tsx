@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+// removed supabase client - using backend API endpoints instead
 import { useRole } from '@/contexts/RoleContext';
 import Sidebar from '@/components/Sidebar';
 import StarField from '@/components/StarField';
@@ -28,16 +28,20 @@ export default function Manufacturers() {
   const { data: manufacturers = [] } = useQuery({
     queryKey: ['manufacturers'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('manufacturers').select('*').order('name');
-      if (error) throw error;
-      return data;
+      const res = await fetch('/api/manufacturers');
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
     },
   });
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
-      const { error } = await supabase.from('manufacturers').insert([data]);
-      if (error) throw error;
+      const res = await fetch('/api/manufacturers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error(await res.text());
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['manufacturers'] });
@@ -49,8 +53,12 @@ export default function Manufacturers() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      const { error } = await supabase.from('manufacturers').update(data).eq('id', id);
-      if (error) throw error;
+      const res = await fetch(`/api/manufacturers/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error(await res.text());
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['manufacturers'] });
@@ -62,8 +70,8 @@ export default function Manufacturers() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('manufacturers').delete().eq('id', id);
-      if (error) throw error;
+      const res = await fetch(`/api/manufacturers/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(await res.text());
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['manufacturers'] });
@@ -108,7 +116,7 @@ export default function Manufacturers() {
     { key: 'specialization', label: 'Specialization' },
   ];
 
-  const canCreate = role === 'admin' || role === 'scientist';
+  const canCreate = role === 'admin' ;
 
   return (
     <div className="flex min-h-screen relative">

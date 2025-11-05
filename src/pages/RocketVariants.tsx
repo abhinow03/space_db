@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { useRole } from '@/contexts/RoleContext';
 import Sidebar from '@/components/Sidebar';
 import StarField from '@/components/StarField';
@@ -31,28 +30,29 @@ export default function RocketVariants() {
   const { data: variants = [] } = useQuery({
     queryKey: ['rocket_variants'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('rocket_variants')
-        .select('*, rockets(name)')
-        .order('variant_name');
-      if (error) throw error;
-      return data;
+      const res = await fetch('/api/rocket_variants');
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
     },
   });
 
   const { data: rockets = [] } = useQuery({
     queryKey: ['rockets'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('rockets').select('*').order('name');
-      if (error) throw error;
-      return data;
+      const res = await fetch('/api/rockets');
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
     },
   });
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
-      const { error } = await supabase.from('rocket_variants').insert([data]);
-      if (error) throw error;
+      const res = await fetch('/api/rocket_variants', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error(await res.text());
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rocket_variants'] });
@@ -64,8 +64,12 @@ export default function RocketVariants() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      const { error } = await supabase.from('rocket_variants').update(data).eq('id', id);
-      if (error) throw error;
+      const res = await fetch(`/api/rocket_variants/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error(await res.text());
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rocket_variants'] });
@@ -77,8 +81,8 @@ export default function RocketVariants() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('rocket_variants').delete().eq('id', id);
-      if (error) throw error;
+      const res = await fetch(`/api/rocket_variants/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(await res.text());
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rocket_variants'] });
