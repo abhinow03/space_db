@@ -111,7 +111,7 @@ export default function Agencies() {
     { key: 'website', label: 'Website', render: (value: string) => value ? <a href={value} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{value}</a> : '-' },
   ];
 
-  const canCreate = role === 'admin' || role === 'scientist';
+  const canCreate = role === 'admin' 
 
   return (
     <div className="flex min-h-screen relative">
