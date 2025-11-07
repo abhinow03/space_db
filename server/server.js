@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+
 import {
   getAllTables,
   getTableData,
@@ -22,7 +23,12 @@ import {
   getAllRocketVariants, insertRocketVariant, updateRocketVariant, deleteRocketVariant,
   // Manufacturers
   getAllManufacturers, insertManufacturer, updateManufacturer, deleteManufacturer,
+  // optionally other helpers...
 } from "./dbQueries.js";
+import { getGraphData } from "./dbQueries.js";
+
+// import pool from centralized db.js but avoid name collision by aliasing
+import { pool as dbPool } from './db.js';
 
 dotenv.config();
 
@@ -64,7 +70,7 @@ app.get("/api/table/:name", async (req, res) => {
 });
 
 /* -------------------------------------------------------------------------- */
-/* 🚀 MISSIONS */
+/* 🚀 MISSIONS                                                              */
 /* -------------------------------------------------------------------------- */
 app.get("/api/missions", async (_req, res) => {
   try {
@@ -95,7 +101,7 @@ app.delete("/api/missions/:id", async (req, res) => {
 });
 
 /* -------------------------------------------------------------------------- */
-/* 🏢 AGENCIES */
+/* 🏢 AGENCIES                                                               */
 /* -------------------------------------------------------------------------- */
 app.get("/api/agencies", async (_req, res) => {
   try {
@@ -125,7 +131,7 @@ app.delete("/api/agencies/:id", async (req, res) => {
 });
 
 /* -------------------------------------------------------------------------- */
-/* 👩‍🚀 CREW MEMBERS */
+/* 👩‍🚀 CREW MEMBERS                                                          */
 /* -------------------------------------------------------------------------- */
 app.get("/api/crew_members", async (_req, res) => {
   try {
@@ -155,7 +161,7 @@ app.delete("/api/crew_members/:id", async (req, res) => {
 });
 
 /* -------------------------------------------------------------------------- */
-/* 🧑‍🚀 CREW ASSIGNMENTS */
+/* 🧑‍🚀 CREW ASSIGNMENTS                                                      */
 /* -------------------------------------------------------------------------- */
 app.get("/api/crew_assignments", async (_req, res) => {
   try {
@@ -185,19 +191,27 @@ app.delete("/api/crew_assignments/:id", async (req, res) => {
 });
 
 /* -------------------------------------------------------------------------- */
-/* 🚀 LAUNCHES */
+/* 🚀 LAUNCHES                                                               */
 /* -------------------------------------------------------------------------- */
 app.get("/api/launches", async (_req, res) => {
   try {
-    res.json(await getAllLaunches());
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    const data = await getAllLaunches();
+    res.json(data);
+  } catch (err) {
+    console.error('GET /api/launches error:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.post("/api/launches", async (req, res) => {
+  console.log('POST /api/launches body:', req.body);
   try {
     await insertLaunch(req.body);
     res.status(201).json({ success: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    console.error('POST /api/launches error:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.put("/api/launches/:id", async (req, res) => {
@@ -215,7 +229,7 @@ app.delete("/api/launches/:id", async (req, res) => {
 });
 
 /* -------------------------------------------------------------------------- */
-/* 🛰️ PAYLOADS */
+/* 🛰️ PAYLOADS                                                               */
 /* -------------------------------------------------------------------------- */
 app.get("/api/payloads", async (_req, res) => {
   try {
@@ -245,7 +259,7 @@ app.delete("/api/payloads/:id", async (req, res) => {
 });
 
 /* -------------------------------------------------------------------------- */
-/* 🚀 ROCKETS */
+/* 🚀 ROCKETS                                                                */
 /* -------------------------------------------------------------------------- */
 app.get("/api/rockets", async (_req, res) => {
   try {
@@ -275,7 +289,7 @@ app.delete("/api/rockets/:id", async (req, res) => {
 });
 
 /* -------------------------------------------------------------------------- */
-/* 🧱 ROCKET VARIANTS */
+/* 🧱 ROCKET VARIANTS                                                         */
 /* -------------------------------------------------------------------------- */
 app.get("/api/rocket_variants", async (_req, res) => {
   try {
@@ -305,7 +319,7 @@ app.delete("/api/rocket_variants/:id", async (req, res) => {
 });
 
 /* -------------------------------------------------------------------------- */
-/* 🏭 MANUFACTURERS */
+/* 🏭 MANUFACTURERS                                                           */
 /* -------------------------------------------------------------------------- */
 app.get("/api/manufacturers", async (_req, res) => {
   try {
@@ -335,7 +349,89 @@ app.delete("/api/manufacturers/:id", async (req, res) => {
 });
 
 /* -------------------------------------------------------------------------- */
-/* ✅ Start Server */
+/* 🔁 Stored procedures / functions (direct endpoints)                        */
+/* -------------------------------------------------------------------------- */
+
+/* Call stored procedure add_mission(p_name, p_agency_id, p_status) */
+app.post('/api/missions/proc', async (req, res) => {
+  console.log('POST /api/missions/proc body:', req.body);
+  const body = req.body || {};
+  const { name, agency_id, status } = body;
+
+  if (!name) {
+    return res.status(400).json({ error: 'Missing required field: name' });
+  }
+
+  try {
+    await dbPool.query('CALL add_mission(?, ?, ?)', [name, agency_id || null, status || null]);
+    res.status(201).json({ success: true, message: 'Mission created via procedure' });
+  } catch (err) {
+    console.error('add_mission error:', err);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+/* Call stored procedure add_launch(p_mission_id, p_variant_id, p_h_name, p_launch_date, p_launch_site, p_outcome) */
+app.post('/api/launches/proc', async (req, res) => {
+  console.log('POST /api/launches/proc body:', req.body);
+  const body = req.body || {};
+  const { mission_id, variant_id, h_name, launch_date, launch_site, outcome } = body;
+
+  if (!mission_id || !variant_id) {
+    return res.status(400).json({ error: 'mission_id and variant_id are required' });
+  }
+
+  try {
+    await dbPool.query('CALL add_launch(?, ?, ?, ?, ?, ?)', [
+      mission_id,
+      variant_id,
+      h_name || null,
+      launch_date || null,
+      launch_site || null,
+      outcome || null,
+    ]);
+    res.status(201).json({ success: true, message: 'Launch created via procedure' });
+  } catch (err) {
+    console.error('add_launch error:', err);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+/* Get active mission count via function get_active_mission_count() */
+app.get('/api/stats/active-missions', async (_req, res) => {
+  try {
+    const [rows] = await dbPool.query('SELECT get_active_mission_count() AS count');
+    res.json({ count: rows[0]?.count ?? 0 });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* Get total payload mass for a launch via function get_total_payload_mass(p_launch_id) */
+app.get('/api/launches/:id/total-mass', async (req, res) => {
+  const launchId = Number(req.params.id);
+  if (!Number.isInteger(launchId)) return res.status(400).json({ error: 'Invalid launch id' });
+  try {
+    const [rows] = await dbPool.query('SELECT get_total_payload_mass(?) AS total_mass', [launchId]);
+    res.json({ total_mass: rows[0]?.total_mass ?? 0 });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* -------------------------------------------------------------------------- */
+/* ✅ Start Server                                                            */
 /* -------------------------------------------------------------------------- */
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => console.log(`✅ Server running at http://localhost:${PORT}`));
+
+// Graph endpoint: returns { nodes, links } built from DB
+app.get('/api/graph', async (_req, res) => {
+  try {
+    const data = await getGraphData();
+    res.json(data);
+  } catch (err) {
+    console.error('GET /api/graph error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});

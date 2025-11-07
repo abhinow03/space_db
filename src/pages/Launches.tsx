@@ -74,15 +74,40 @@ export default function Launches() {
     },
   });
 
+  /* ---------------- TOTAL PAYLOAD MASS FOR SELECTED LAUNCH (uses DB function) ---------------- */
+  const { data: totalMassData } = useQuery({
+    queryKey: ['launch', editingItem?.launch_id, 'total-mass'],
+    queryFn: async () => {
+      const id = editingItem?.launch_id;
+      const res = await fetch(`${API_BASE}/launches/${id}/total-mass`);
+      if (!res.ok) throw new Error('Failed to fetch total payload mass');
+      return await res.json();
+    },
+    enabled: !!editingItem?.launch_id,
+  });
+
   /* ---------------- CREATE LAUNCH ---------------- */
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
-      const res = await fetch(`${API_BASE}/launches`, {
+      // convert string IDs from the form to numbers before calling backend
+      const payload = {
+        mission_id: data.mission_id ? Number(data.mission_id) : null,
+        variant_id: data.rocket_variant_id ? Number(data.rocket_variant_id) : null,
+        h_name: data.notes || null,
+        launch_date: data.launch_date || null,
+        launch_site: data.launch_site || null,
+        outcome: data.success === '' ? null : (data.success ? 'success' : 'failure'),
+      };
+
+      const res = await fetch(`${API_BASE}/launches/proc`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error('Failed to create launch');
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error || 'Failed to create launch');
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['launches'] });
@@ -163,12 +188,16 @@ export default function Launches() {
   const handleEdit = (item: any) => {
     setEditingItem(item);
     setFormData({
-      mission_id: item.mission_id || '',
-      rocket_variant_id: item.rocket_variant_id || '',
+      mission_id: item.mission_id != null ? String(item.mission_id) : '',
+      // handle both possible field names returned by API (variant_id or rocket_variant_id)
+      rocket_variant_id:
+        (item.variant_id ?? item.rocket_variant_id) != null
+          ? String(item.variant_id ?? item.rocket_variant_id)
+          : '',
       launch_date: item.launch_date ? new Date(item.launch_date).toISOString().slice(0, 16) : '',
-      launch_site: item.launch_site,
-      status: item.status,
-      success: item.success === null ? '' : item.success.toString(),
+      launch_site: item.launch_site || '',
+      status: item.status || 'scheduled',
+      success: item.success === null ? '' : String(item.success),
       notes: item.notes || '',
     });
     setIsDialogOpen(true);
@@ -235,7 +264,7 @@ export default function Launches() {
                       </SelectTrigger>
                       <SelectContent className="glass-panel">
                         {missions.map((m: any) => (
-                          <SelectItem key={m.mission_id} value={m.mission_id}>
+                          <SelectItem key={String(m.mission_id)} value={String(m.mission_id)}>
                             {m.name}
                           </SelectItem>
                         ))}
@@ -255,11 +284,14 @@ export default function Launches() {
                         <SelectValue placeholder="Select rocket variant" />
                       </SelectTrigger>
                       <SelectContent className="glass-panel">
-                        {variants.map((v: any) => (
-                          <SelectItem key={v.rocket_variant_id} value={v.rocket_variant_id}>
-                            {v.variant_name}
-                          </SelectItem>
-                        ))}
+                        {variants.map((v: any) => {
+                          const id = v.variant_id ?? v.rocket_variant_id ?? v.id;
+                          return (
+                            <SelectItem key={String(id)} value={String(id)}>
+                              {v.variant_name ?? v.name}
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                   </div>
@@ -337,6 +369,14 @@ export default function Launches() {
                       rows={3}
                     />
                   </div>
+
+                  {editingItem && (
+                    <div className="text-sm text-muted-foreground">
+                      <strong>Total payload mass for this launch:</strong>{' '}
+                      {totalMassData ? `${totalMassData.total_mass} kg` : '—'}
+                    </div>
+                  )
+                  }
 
                   <Button type="submit" className="w-full neon-glow">
                     {editingItem ? 'Update Launch' : 'Create Launch'}

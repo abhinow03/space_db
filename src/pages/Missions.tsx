@@ -56,12 +56,15 @@ return json.rows || [];
 /* ------------------- MUTATIONS ------------------- */
 const createMutation = useMutation({
 mutationFn: async (data: any) => {
-const res = await fetch(`${API_BASE}/missions`, {
-method: "POST",
-headers: { "Content-Type": "application/json" },
-body: JSON.stringify(data)
+const res = await fetch(`${API_BASE}/missions/proc`, {
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify({ name: data.name, agency_id: data.agency_id, status: data.status }),
 });
-if (!res.ok) throw new Error("Failed to create mission");
+if (!res.ok) {
+const err = await res.json().catch(() => null);
+throw new Error(err?.error || 'Failed to create mission');
+}
 },
 onSuccess: () => {
 queryClient.invalidateQueries({ queryKey: ['missions'] });
@@ -151,7 +154,7 @@ const columns = [
 { key: 'status', label: 'Status', render: (val: string) => <span className="capitalize">{val}</span> },
 ];
 
-const canCreate = role === 'admin' || role === 'scientist';
+const canCreate = role === 'admin';
 
 return ( <div className="flex min-h-screen relative"> <StarField /> <Sidebar />
 

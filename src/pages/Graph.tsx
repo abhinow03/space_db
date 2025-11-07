@@ -1,25 +1,39 @@
 import { motion } from 'framer-motion';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import ForceGraph2D from 'react-force-graph-2d';
 import Sidebar from '@/components/Sidebar';
 import StarField from '@/components/StarField';
 import { Card } from '@/components/ui/card';
 
+const API_BASE = 'http://localhost:4000/api';
+
 export default function Graph() {
-  const graphData = {
-    nodes: [
-      { id: 'nasa', name: 'NASA', type: 'agency', color: '#00ffff' },
-      { id: 'spacex', name: 'SpaceX', type: 'agency', color: '#00ffff' },
-      { id: 'apollo', name: 'Apollo 11', type: 'mission', color: '#00ff00' },
-      { id: 'dragon', name: 'Dragon', type: 'rocket', color: '#ff8800' },
-      { id: 'payload1', name: 'Satellite', type: 'payload', color: '#c0c0c0' },
-    ],
-    links: [
-      { source: 'nasa', target: 'apollo' },
-      { source: 'spacex', target: 'dragon' },
-      { source: 'apollo', target: 'payload1' },
-    ],
-  };
+  const { data: graph = { nodes: [], links: [] }, isLoading, isError, error } = useQuery({
+    queryKey: ['graph'],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/graph`);
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    staleTime: 1000 * 60,
+  });
+
+  // quick debug log so you can see response in browser console
+  useEffect(() => {
+    console.log('API /api/graph response:', { isLoading, isError, error, graph });
+  }, [isLoading, isError, error, graph]);
+
+  const graphData = useMemo(() => {
+    return {
+      nodes: (graph.nodes || []).map((n: any) => ({ id: String(n.id), name: n.label ?? n.name, type: n.type, color: n.color })),
+      links: (graph.links || []).map((l: any) => ({ source: String(l.source), target: String(l.target) })),
+    };
+  }, [graph]);
+
+  if (isLoading) return <div className="p-4">Loading graph…</div>;
+  if (isError) return <div className="p-4 text-red-500">Graph error: {String(error)}</div>;
+  if (!graphData.nodes.length) return <div className="p-4">No graph data returned from the server.</div>;
 
   return (
     <div className="flex min-h-screen relative">
@@ -34,9 +48,20 @@ export default function Graph() {
           <ForceGraph2D
             graphData={graphData}
             nodeLabel="name"
-            nodeColor={(node: any) => node.color}
+            nodeAutoColorBy="type"
             linkColor={() => '#00ffff'}
             backgroundColor="transparent"
+            nodeCanvasObject={(node: any, ctx: CanvasRenderingContext2D, globalScale) => {
+              const label = node.name;
+              const fontSize = 12 / globalScale;
+              ctx.fillStyle = node.color || (node.color = '#888');
+              ctx.beginPath();
+              ctx.arc(node.x ?? 0, node.y ?? 0, 6, 0, 2 * Math.PI, false);
+              ctx.fill();
+              ctx.font = `${fontSize}px Sans-Serif`;
+              ctx.fillStyle = '#ffffff';
+              ctx.fillText(label, (node.x ?? 0) + 8, (node.y ?? 0) + 4);
+            }}
           />
         </Card>
       </main>

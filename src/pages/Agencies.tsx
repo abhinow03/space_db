@@ -157,7 +157,7 @@ export default function Agencies() {
     },
   ];
 
-  const canCreate = role === 'admin' || role === 'scientist';
+  const canCreate = role === 'admin' ;
 
   return (
     <div className="flex min-h-screen relative">
