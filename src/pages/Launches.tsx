@@ -36,12 +36,14 @@ export default function Launches() {
   const [editingItem, setEditingItem] = useState<any>(null);
   const [formData, setFormData] = useState({
     mission_id: '',
-    rocket_variant_id: '',
+    variant_id: '',
+    h_name: '',
     launch_date: '',
     launch_site: '',
-    status: 'scheduled',
-    success: '',
-    notes: '',
+    outcome: 'success' as 'success' | 'failure',
+    status: 'scheduled' as 'scheduled' | 'launched' | 'aborted',
+    success: '', // add this
+    notes: ''    // add this
   });
 
   /* ---------------- FETCH LAUNCHES ---------------- */
@@ -89,31 +91,25 @@ export default function Launches() {
   /* ---------------- CREATE LAUNCH ---------------- */
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
-      // convert string IDs from the form to numbers before calling backend
-      const payload = {
-        mission_id: data.mission_id ? Number(data.mission_id) : null,
-        variant_id: data.rocket_variant_id ? Number(data.rocket_variant_id) : null,
-        h_name: data.notes || null,
-        launch_date: data.launch_date || null,
-        launch_site: data.launch_site || null,
-        outcome: data.success === '' ? null : (data.success ? 'success' : 'failure'),
-      };
-
       const res = await fetch(`${API_BASE}/launches/proc`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          mission_id: Number(data.mission_id),
+          variant_id: Number(data.variant_id),
+          h_name: data.h_name,
+          launch_date: data.launch_date,
+          launch_site: data.launch_site,
+          outcome: data.outcome,
+        }),
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => null);
-        throw new Error(err?.error || 'Failed to create launch');
-      }
+      if (!res.ok) throw new Error('Failed to create launch');
+      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['launches'] });
-      toast.success('Launch created successfully');
       setIsDialogOpen(false);
-      resetForm();
+      toast.success('Launch created successfully');
     },
     onError: (err: any) => toast.error(err.message),
   });
@@ -156,12 +152,14 @@ export default function Launches() {
   const resetForm = () => {
     setFormData({
       mission_id: '',
-      rocket_variant_id: '',
+      variant_id: '',
+      h_name: '',
       launch_date: '',
       launch_site: '',
+      outcome: 'success',
       status: 'scheduled',
       success: '',
-      notes: '',
+      notes: ''
     });
     setEditingItem(null);
   };
@@ -170,12 +168,11 @@ export default function Launches() {
     e.preventDefault();
     const data = {
       mission_id: formData.mission_id || null,
-      rocket_variant_id: formData.rocket_variant_id || null,
+      variant_id: formData.variant_id || null,
+      h_name: formData.h_name,
       launch_date: formData.launch_date,
       launch_site: formData.launch_site,
-      status: formData.status,
-      success: formData.success === '' ? null : formData.success === 'true',
-      notes: formData.notes || null,
+      outcome: formData.outcome
     };
 
     if (editingItem) {
@@ -189,28 +186,45 @@ export default function Launches() {
     setEditingItem(item);
     setFormData({
       mission_id: item.mission_id != null ? String(item.mission_id) : '',
-      // handle both possible field names returned by API (variant_id or rocket_variant_id)
-      rocket_variant_id:
-        (item.variant_id ?? item.rocket_variant_id) != null
-          ? String(item.variant_id ?? item.rocket_variant_id)
-          : '',
+      variant_id: (item.variant_id ?? item.rocket_variant_id) != null 
+        ? String(item.variant_id ?? item.rocket_variant_id)
+        : '',
+      h_name: item.h_name || '',
       launch_date: item.launch_date ? new Date(item.launch_date).toISOString().slice(0, 16) : '',
       launch_site: item.launch_site || '',
       status: item.status || 'scheduled',
+      outcome: item.outcome || 'success',
       success: item.success === null ? '' : String(item.success),
-      notes: item.notes || '',
+      notes: item.notes || ''
     });
     setIsDialogOpen(true);
   };
 
   const columns = [
     { key: 'launch_id', label: 'ID' },
-    { key: 'launch_date', label: 'Launch Date', render: (val: string) => new Date(val).toLocaleString() },
-    { key: 'mission_id', label: 'Mission ID' },
-    { key: 'rocket_variant_id', label: 'Rocket Variant ID' },
-    { key: 'launch_site', label: 'Launch Site' },
-    { key: 'status', label: 'Status', render: (val: string) => val || '-' },
-    { key: 'success', label: 'Success', render: (val: boolean | null) => (val === null ? '-' : val ? '✅' : '❌') },
+    { key: 'mission_name', label: 'Mission' }, // from JOIN with missions table
+    { key: 'variant_name', label: 'Rocket' }, // from JOIN with rocket_variants table
+    { key: 'h_name', label: 'Name', render: (val: string) => val || '-' },
+    {
+      key: 'launch_date',
+      label: 'Date',
+      render: (val: string) => (val ? new Date(val).toLocaleDateString() : '-'),
+    },
+    { key: 'launch_site', label: 'Site', render: (val: string) => val || '-' },
+    {
+      key: 'outcome',
+      label: 'Outcome',
+      render: (val: 'success' | 'failure' | null) => {
+        switch (val) {
+          case 'success':
+            return '✅';
+          case 'failure':
+            return '❌';
+          default:
+            return '-';
+        }
+      },
+    },
   ];
 
   const canCreate = role === 'admin' || role === 'scientist';
@@ -275,9 +289,9 @@ export default function Launches() {
                   <div>
                     <Label htmlFor="rocket_variant_id">Rocket Variant</Label>
                     <Select
-                      value={formData.rocket_variant_id}
+                      value={formData.variant_id}
                       onValueChange={(value) =>
-                        setFormData({ ...formData, rocket_variant_id: value })
+                        setFormData({ ...formData, variant_id: value })
                       }
                     >
                       <SelectTrigger className="bg-input border-border/50">
@@ -329,7 +343,7 @@ export default function Launches() {
                       <Label htmlFor="status">Status</Label>
                       <Select
                         value={formData.status}
-                        onValueChange={(value) => setFormData({ ...formData, status: value })}
+                        onValueChange={(value) => setFormData({ ...formData, status: value as 'scheduled' | 'launched' | 'aborted' })}
                       >
                         <SelectTrigger className="bg-input border-border/50">
                           <SelectValue />

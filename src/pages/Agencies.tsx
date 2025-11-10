@@ -106,13 +106,23 @@ export default function Agencies() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Convert empty strings to null, but preserve '0' for founded_year
+    const founded_year = formData.founded_year.trim() === '' ? null : 
+                        parseInt(formData.founded_year) || null;
+    
+    const website = formData.website.trim() || null;
+    
     const data = {
-      name: formData.name,
-      country: formData.country,
-      founded_year: formData.founded_year ? parseInt(formData.founded_year) : null,
-      description: formData.description || null,
-      website: formData.website || null,
+      name: formData.name.trim(),
+      country: formData.country.trim(),
+      founded_year,
+      description: formData.description.trim() || null,
+      website
     };
+
+    // Log the payload for debugging
+    console.log('Submitting agency data:', data);
 
     if (editingItem) {
       updateMutation.mutate({ agency_id: editingItem.agency_id, data });
@@ -124,9 +134,9 @@ export default function Agencies() {
   const handleEdit = (item: any) => {
     setEditingItem(item);
     setFormData({
-      name: item.name,
-      country: item.country,
-      founded_year: item.founded_year?.toString() || '',
+      name: item.name || '',
+      country: item.country || '',
+      founded_year: item.founded_year ? item.founded_year.toString() : '',
       description: item.description || '',
       website: item.website || '',
     });

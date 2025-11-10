@@ -33,11 +33,13 @@ export default function CrewAssignments() {
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
+
+  // ✅ initialize with empty strings to keep controlled state
   const [formData, setFormData] = useState({
-    crew_member_id: '',
-    mission_id: '',
-    role: '',
-    assignment_date: '',
+    crew_member_id: "",
+    mission_id: "",
+    role: "",
+    assignment_date: "",
   });
 
   /* ---------------- FETCH ASSIGNMENTS ---------------- */
@@ -125,16 +127,21 @@ export default function CrewAssignments() {
 
   /* ---------------- FORM HANDLING ---------------- */
   const resetForm = () => {
-    setFormData({ crew_member_id: '', mission_id: '', role: '', assignment_date: '' });
+    setFormData({
+      crew_member_id: "",
+      mission_id: "",
+      role: "",
+      assignment_date: "",
+    });
     setEditingItem(null);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const data = {
-      crew_member_id: formData.crew_member_id,
-      mission_id: formData.mission_id,
-      role: formData.role,
+      crew_member_id: Number(formData.crew_member_id) || null,
+      mission_id: Number(formData.mission_id) || null,
+      role: formData.role.trim(),
       assignment_date: formData.assignment_date || null,
     };
 
@@ -148,25 +155,26 @@ export default function CrewAssignments() {
   const handleEdit = (item: any) => {
     setEditingItem(item);
     setFormData({
-      crew_member_id: item.crew_member_id,
-      mission_id: item.mission_id,
-      role: item.role,
-      assignment_date: item.assignment_date || '',
+      crew_member_id: String(item.crew_member_id || ""),
+      mission_id: String(item.mission_id || ""),
+      role: item.role || "",
+      assignment_date: item.assignment_date || "",
     });
     setIsDialogOpen(true);
   };
 
-  const columns = [
-    { key: 'assignment_id', label: 'ID' },
-    { key: 'crew_member_id', label: 'Crew Member ID' },
-    { key: 'mission_id', label: 'Mission ID' },
-    { key: 'role', label: 'Role' },
-    {
-      key: 'assignment_date',
-      label: 'Assignment Date',
-      render: (val: string) => (val ? new Date(val).toLocaleDateString() : '-'),
-    },
-  ];
+ const columns = [
+  { key: 'assignment_id', label: 'ID' },
+  { key: 'crew_member_name', label: 'Crew Member' },
+  { key: 'mission_name', label: 'Mission' },
+  { key: 'role', label: 'Role' },
+  {
+    key: 'assignment_date',
+    label: 'Assignment Date',
+    render: (val: string) => (val ? new Date(val).toLocaleDateString() : '-'),
+  },
+];
+
 
   const canCreate = role === 'admin' || role === 'scientist';
 
@@ -211,7 +219,7 @@ export default function CrewAssignments() {
                   <div>
                     <Label htmlFor="crew_member_id">Crew Member *</Label>
                     <Select
-                      value={formData.crew_member_id}
+                      value={formData.crew_member_id || ""}
                       onValueChange={(value) =>
                         setFormData({ ...formData, crew_member_id: value })
                       }
@@ -222,7 +230,7 @@ export default function CrewAssignments() {
                       </SelectTrigger>
                       <SelectContent className="glass-panel">
                         {crewMembers.map((c: any) => (
-                          <SelectItem key={c.crew_member_id} value={c.crew_member_id}>
+                          <SelectItem key={c.crew_id} value={String(c.crew_id)}>
                             {c.name}
                           </SelectItem>
                         ))}
@@ -233,7 +241,7 @@ export default function CrewAssignments() {
                   <div>
                     <Label htmlFor="mission_id">Mission *</Label>
                     <Select
-                      value={formData.mission_id}
+                      value={formData.mission_id || ""}
                       onValueChange={(value) =>
                         setFormData({ ...formData, mission_id: value })
                       }
@@ -244,7 +252,7 @@ export default function CrewAssignments() {
                       </SelectTrigger>
                       <SelectContent className="glass-panel">
                         {missions.map((m: any) => (
-                          <SelectItem key={m.mission_id} value={m.mission_id}>
+                          <SelectItem key={m.mission_id} value={String(m.mission_id)}>
                             {m.name}
                           </SelectItem>
                         ))}
@@ -271,7 +279,7 @@ export default function CrewAssignments() {
                     <Input
                       id="assignment_date"
                       type="date"
-                      value={formData.assignment_date}
+                      value={formData.assignment_date || ""}
                       onChange={(e) =>
                         setFormData({ ...formData, assignment_date: e.target.value })
                       }

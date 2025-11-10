@@ -25,7 +25,7 @@ const [rows] = await dbPool.query(`
     SELECT m.*, a.name AS agency_name
     FROM missions m
     LEFT JOIN agencies a ON a.agency_id = m.agency_id
-    ORDER BY m.mission_id DESC
+    ORDER BY m.mission_id 
   `);
 return rows;
 }
@@ -73,89 +73,103 @@ await dbPool.query("DELETE FROM missions WHERE mission_id=?", [id]);
 /* 🏢 AGENCIES */
 /* -------------------------------------------------------------------------- */
 export async function getAllAgencies() {
-const [rows] = await dbPool.query("SELECT * FROM agencies ORDER BY agency_id DESC");
-return rows;
+  const [rows] = await dbPool.query("SELECT * FROM agencies ORDER BY agency_id ");
+  return rows;
 }
 
 export async function insertAgency(data) {
-const { name, country } = data;
-await dbPool.query("INSERT INTO agencies (name, country) VALUES (?, ?)", [name, country || null]);
+  const { name, country, founded_year, website, description } = data;
+  await dbPool.query(
+    "INSERT INTO agencies (name, country, founded_year, website, description) VALUES (?, ?, ?, ?, ?)",
+    [name, country || null, founded_year || null, website || null, description || null]
+  );
 }
 
 export async function updateAgency(id, data) {
-const { name, country } = data;
-await dbPool.query("UPDATE agencies SET name=?, country=? WHERE agency_id=?", [name, country || null, id]);
+  const { name, country, founded_year, website, description } = data;
+  await dbPool.query(
+    "UPDATE agencies SET name=?, country=?, founded_year=?, website=?, description=? WHERE agency_id=?",
+    [name, country || null, founded_year || null, website || null, description || null, id]
+  );
 }
 
 export async function deleteAgency(id) {
-await dbPool.query("DELETE FROM agencies WHERE agency_id=?", [id]);
+  await dbPool.query("DELETE FROM agencies WHERE agency_id=?", [id]);
 }
 
 /* -------------------------------------------------------------------------- */
 /* 👩‍🚀 CREW MEMBERS */
 /* -------------------------------------------------------------------------- */
 export async function getAllCrewMembers() {
-const [rows] = await dbPool.query(`
-    SELECT c.*, a.name AS agency_name
+  const [rows] = await dbPool.query(`
+    SELECT 
+      c.*,
+      a.name AS agency_name,
+      COUNT(ca.assignment_id) AS missions_count
     FROM crew_members c
     LEFT JOIN agencies a ON a.agency_id = c.agency_id
-    ORDER BY c.crew_id DESC
+    LEFT JOIN crew_assignments ca ON ca.crew_member_id = c.crew_id
+    GROUP BY c.crew_id
+    ORDER BY c.crew_id 
   `);
-return rows;
+  return rows;
 }
 
 export async function insertCrewMember(data) {
-const { name, nationality, agency_id, role } = data;
-await dbPool.query(
-"INSERT INTO crew_members (name, nationality, agency_id, role) VALUES (?, ?, ?, ?)",
-[name, nationality || null, agency_id || null, role || null]
-);
+  const { name, nationality, agency_id, role, date_of_birth, bio } = data;
+  await dbPool.query(
+    "INSERT INTO crew_members (name, nationality, agency_id, role, date_of_birth, bio) VALUES (?, ?, ?, ?, ?, ?)",
+    [name, nationality || null, agency_id || null, role || null, date_of_birth || null, bio || null]
+  );
 }
 
 export async function updateCrewMember(id, data) {
-const { name, nationality, agency_id, role } = data;
-await dbPool.query(
-"UPDATE crew_members SET name=?, nationality=?, agency_id=?, role=? WHERE crew_id=?",
-[name, nationality || null, agency_id || null, role || null, id]
-);
+  const { name, nationality, agency_id, role, date_of_birth, bio } = data;
+  await dbPool.query(
+    "UPDATE crew_members SET name=?, nationality=?, agency_id=?, role=?, date_of_birth=?, bio=? WHERE crew_id=?",
+    [name, nationality || null, agency_id || null, role || null, date_of_birth || null, bio || null, id]
+  );
 }
 
 export async function deleteCrewMember(id) {
-await dbPool.query("DELETE FROM crew_members WHERE crew_id=?", [id]);
+  await dbPool.query("DELETE FROM crew_members WHERE crew_id=?", [id]);
 }
 
 /* -------------------------------------------------------------------------- */
 /* 🧑‍🚀 CREW ASSIGNMENTS */
 /* -------------------------------------------------------------------------- */
 export async function getAllCrewAssignments() {
-const [rows] = await dbPool.query(`
-    SELECT ca.*, cm.name AS crew_name, l.h_name AS launch_name
+  const [rows] = await dbPool.query(`
+    SELECT 
+      ca.*,
+      cm.name AS crew_member_name,
+      m.name AS mission_name
     FROM crew_assignments ca
-    LEFT JOIN crew_members cm ON cm.crew_id = ca.crew_id
-    LEFT JOIN launches l ON l.launch_id = ca.launch_id
-    ORDER BY ca.assignment_id DESC
+    LEFT JOIN crew_members cm ON cm.crew_id = ca.crew_member_id
+    LEFT JOIN missions m ON m.mission_id = ca.mission_id
+    ORDER BY ca.assignment_id 
   `);
-return rows;
+  return rows;
 }
 
 export async function insertCrewAssignment(data) {
-const { launch_id, crew_id, role } = data;
-await dbPool.query(
-"INSERT INTO crew_assignments (launch_id, crew_id, role) VALUES (?, ?, ?);",
-[launch_id || null, crew_id || null, role || null]
-);
+  const { crew_member_id, mission_id, role, assignment_date } = data;
+  await dbPool.query(
+    "INSERT INTO crew_assignments (crew_member_id, mission_id, role, assignment_date) VALUES (?, ?, ?, ?);",
+    [crew_member_id || null, mission_id || null, role || null, assignment_date || null]
+  );
 }
 
 export async function updateCrewAssignment(id, data) {
-const { launch_id, crew_id, role } = data;
-await dbPool.query(
-"UPDATE crew_assignments SET launch_id=?, crew_id=?, role=? WHERE assignment_id=?;",
-[launch_id || null, crew_id || null, role || null, id]
-);
+  const { crew_member_id, mission_id, role, assignment_date } = data;
+  await dbPool.query(
+    "UPDATE crew_assignments SET crew_member_id=?, mission_id=?, role=?, assignment_date=? WHERE assignment_id=?;",
+    [crew_member_id || null, mission_id || null, role || null, assignment_date || null, id]
+  );
 }
 
 export async function deleteCrewAssignment(id) {
-await dbPool.query("DELETE FROM crew_assignments WHERE assignment_id=?;", [id]);
+  await dbPool.query("DELETE FROM crew_assignments WHERE assignment_id=?;", [id]);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -196,64 +210,66 @@ await dbPool.query("DELETE FROM launches WHERE launch_id=?;", [id]);
 /* 🛰️ PAYLOADS */
 /* -------------------------------------------------------------------------- */
 export async function getAllPayloads() {
-const [rows] = await dbPool.query(`     SELECT p.*, l.h_name AS launch_name
+  const [rows] = await dbPool.query(`
+    SELECT p.*, l.h_name AS launch_name
     FROM payloads p
     LEFT JOIN launches l ON l.launch_id = p.launch_id
-    ORDER BY p.payload_id DESC;
+    ORDER BY p.payload_id ;
   `);
-return rows;
+  return rows;
 }
 
 export async function insertPayload(data) {
-const { launch_id, name, type, mass_kg } = data;
-await dbPool.query(
-"INSERT INTO payloads (launch_id, name, type, mass_kg) VALUES (?, ?, ?, ?);",
-[launch_id || null, name, type || "satellite", mass_kg || null]
-);
+  const { launch_id, name, type, mass_kg, description } = data;
+  await dbPool.query(
+    "INSERT INTO payloads (launch_id, name, type, mass_kg, description) VALUES (?, ?, ?, ?, ?);",
+    [launch_id || null, name, type || "satellite", mass_kg || null, description || null]
+  );
 }
 
 export async function updatePayload(id, data) {
-const { launch_id, name, type, mass_kg } = data;
-await dbPool.query(
-"UPDATE payloads SET launch_id=?, name=?, type=?, mass_kg=? WHERE payload_id=?;",
-[launch_id || null, name, type || "satellite", mass_kg || null, id]
-);
+  const { launch_id, name, type, mass_kg, description } = data;
+  await dbPool.query(
+    "UPDATE payloads SET launch_id=?, name=?, type=?, mass_kg=?, description=? WHERE payload_id=?;",
+    [launch_id || null, name, type || "satellite", mass_kg || null, description || null, id]
+  );
 }
 
 export async function deletePayload(id) {
-await dbPool.query("DELETE FROM payloads WHERE payload_id=?;", [id]);
+  await dbPool.query("DELETE FROM payloads WHERE payload_id=?;", [id]);
 }
 
 /* -------------------------------------------------------------------------- */
 /* 🚀 ROCKETS */
 /* -------------------------------------------------------------------------- */
 export async function getAllRockets() {
-const [rows] = await dbPool.query(`     SELECT r.*, m.name AS manufacturer_name
+  const [rows] = await dbPool.query(`
+    SELECT r.*, m.name AS manufacturer_name
     FROM rockets r
     LEFT JOIN manufacturers m ON m.manufacturer_id = r.manufacturer_id
-    ORDER BY r.rocket_id DESC;
+    ORDER BY r.rocket_id ;
   `);
-return rows;
+  return rows;
 }
 
 export async function insertRocket(data) {
-const { name, manufacturer_id, first_flight } = data;
-await dbPool.query(
-"INSERT INTO rockets (name, manufacturer_id, first_flight) VALUES (?, ?, ?);",
-[name, manufacturer_id || null, first_flight || null]
-);
+  const { name, manufacturer_id, first_flight, description, height_meters, mass_kg } = data;
+  await dbPool.query(
+    "INSERT INTO rockets (name, manufacturer_id, first_flight, description, height_meters, mass_kg) VALUES (?, ?, ?, ?, ?, ?);",
+    [name, manufacturer_id || null, first_flight || null, description || null, height_meters || null, mass_kg || null]
+  );
 }
 
 export async function updateRocket(id, data) {
-const { name, manufacturer_id, first_flight } = data;
-await dbPool.query(
-"UPDATE rockets SET name=?, manufacturer_id=?, first_flight=? WHERE rocket_id=?;",
-[name, manufacturer_id || null, first_flight || null, id]
-);
+  const { name, manufacturer_id, first_flight, description, height_meters, mass_kg } = data;
+  await dbPool.query(
+    "UPDATE rockets SET name=?, manufacturer_id=?, first_flight=?, description=?, height_meters=?, mass_kg=? WHERE rocket_id=?;",
+    [name, manufacturer_id || null, first_flight || null, description || null, height_meters || null, mass_kg || null, id]
+  );
 }
 
 export async function deleteRocket(id) {
-await dbPool.query("DELETE FROM rockets WHERE rocket_id=?;", [id]);
+  await dbPool.query("DELETE FROM rockets WHERE rocket_id=?;", [id]);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -263,7 +279,7 @@ export async function getAllRocketVariants() {
 const [rows] = await dbPool.query(`     SELECT rv.*, r.name AS rocket_name
     FROM rocket_variants rv
     LEFT JOIN rockets r ON r.rocket_id = rv.rocket_id
-    ORDER BY rv.variant_id DESC;
+    ORDER BY rv.variant_id ;
   `);
 return rows;
 }
@@ -292,18 +308,24 @@ await dbPool.query("DELETE FROM rocket_variants WHERE variant_id=?;", [id]);
 /* 🏭 MANUFACTURERS */
 /* -------------------------------------------------------------------------- */
 export async function getAllManufacturers() {
-const [rows] = await dbPool.query("SELECT * FROM manufacturers ORDER BY manufacturer_id DESC;");
+const [rows] = await dbPool.query("SELECT * FROM manufacturers ORDER BY manufacturer_id ;");
 return rows;
 }
 
 export async function insertManufacturer(data) {
-const { name, country } = data;
-await dbPool.query("INSERT INTO manufacturers (name, country) VALUES (?, ?);", [name, country || null]);
+const { name, country, founded_year, specialization } = data;
+await dbPool.query(
+  "INSERT INTO manufacturers (name, country, founded_year, specialization) VALUES (?, ?, ?, ?);", 
+  [name, country || null, founded_year || null, specialization || null]
+);
 }
 
 export async function updateManufacturer(id, data) {
-const { name, country } = data;
-await dbPool.query("UPDATE manufacturers SET name=?, country=? WHERE manufacturer_id=?;", [name, country || null, id]);
+const { name, country, founded_year, specialization } = data;
+await dbPool.query(
+  "UPDATE manufacturers SET name=?, country=?, founded_year=?, specialization=? WHERE manufacturer_id=?;", 
+  [name, country || null, founded_year || null, specialization || null, id]
+);
 }
 
 export async function deleteManufacturer(id) {

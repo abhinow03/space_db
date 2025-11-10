@@ -62,22 +62,94 @@ export default function Crew() {
       queryClient.invalidateQueries({ queryKey: ['crew_members'] });
       toast.success('Crew member added successfully');
       setIsDialogOpen(false);
-      setFormData({ name: '', nationality: '', date_of_birth: '', role: '', bio: '' });
+      resetForm();
     },
     onError: (err: any) => toast.error(err.message),
   });
 
-  /* ---------------- HANDLE FORM SUBMIT ---------------- */
+  /* ---------------- UPDATE CREW MEMBER ---------------- */
+  const updateMutation = useMutation({
+    mutationFn: async ({ crew_id, data }: { crew_id: number; data: any }) => {
+      const res = await fetch(`${API_BASE}/crew_members/${crew_id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error('Failed to update crew member');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['crew_members'] });
+      toast.success('Crew member updated successfully');
+      setIsDialogOpen(false);
+      resetForm();
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  /* ---------------- DELETE CREW MEMBER ---------------- */
+  const deleteMutation = useMutation({
+    mutationFn: async (crew_id: number) => {
+      const res = await fetch(`${API_BASE}/crew_members/${crew_id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error('Failed to delete crew member');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['crew_members'] });
+      toast.success('Crew member deleted successfully');
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  /* ---------------- FORM HANDLING ---------------- */
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      nationality: '',
+      date_of_birth: '',
+      role: '',
+      bio: '',
+    });
+    setEditingItem(null);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    createMutation.mutate(formData);
+    const data = {
+      name: formData.name,
+      nationality: formData.nationality || null,
+      date_of_birth: formData.date_of_birth || null,
+      role: formData.role || null,
+      bio: formData.bio || null,
+    };
+
+    if (editingItem) {
+      updateMutation.mutate({ crew_id: editingItem.crew_id, data });
+    } else {
+      createMutation.mutate(data);
+    }
+  };
+
+  const handleEdit = (item: any) => {
+    setEditingItem(item);
+    setFormData({
+      name: item.name,
+      nationality: item.nationality || '',
+      date_of_birth: item.date_of_birth || '',
+      role: item.role || '',
+      bio: item.bio || '',
+    });
+    setIsDialogOpen(true);
   };
 
   /* ---------------- TABLE COLUMNS ---------------- */
   const columns = [
+    { key: 'crew_id', label: 'ID' },
     { key: 'name', label: 'Name' },
     { key: 'nationality', label: 'Nationality' },
+    { key: 'date_of_birth', label: 'Date of Birth' },
     { key: 'role', label: 'Role' },
+    { key: 'bio', label: 'Bio' },
     { key: 'missions_count', label: 'Missions' },
   ];
 
@@ -102,7 +174,7 @@ export default function Crew() {
           {canCreate && (
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="neon-glow" onClick={() => setEditingItem(null)}>
+                <Button className="neon-glow" onClick={() => resetForm()}>
                   <Plus size={20} className="mr-2" />
                   Add Crew Member
                 </Button>
@@ -133,12 +205,11 @@ export default function Crew() {
                   </div>
 
                   <div>
-                    <Label htmlFor="nationality">Nationality *</Label>
+                    <Label htmlFor="nationality">Nationality</Label>
                     <Input
                       id="nationality"
                       value={formData.nationality}
                       onChange={(e) => setFormData({ ...formData, nationality: e.target.value })}
-                      required
                       className="bg-input border-border/50"
                     />
                   </div>
@@ -155,12 +226,11 @@ export default function Crew() {
                   </div>
 
                   <div>
-                    <Label htmlFor="role">Role *</Label>
+                    <Label htmlFor="role">Role</Label>
                     <Input
                       id="role"
                       value={formData.role}
                       onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                      required
                       className="bg-input border-border/50"
                     />
                   </div>
@@ -177,7 +247,7 @@ export default function Crew() {
                   </div>
 
                   <Button type="submit" className="w-full neon-glow">
-                    {editingItem ? 'Update Crew Member' : 'Create Crew Member'}
+                    {editingItem ? 'Update' : 'Create'} Crew Member
                   </Button>
                 </form>
               </DialogContent>
@@ -185,7 +255,16 @@ export default function Crew() {
           )}
         </motion.div>
 
-        <DataTable data={crew} columns={columns} />
+        <DataTable
+          data={crew}
+          columns={columns}
+          onEdit={handleEdit}
+          onDelete={(item) => {
+            if (confirm('Are you sure you want to delete this crew member?')) {
+              deleteMutation.mutate(item.crew_id);
+            }
+          }}
+        />
       </main>
     </div>
   );

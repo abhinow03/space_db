@@ -39,7 +39,6 @@ export default function Payloads() {
     name: '',
     type: '',
     mass_kg: '',
-    orbit: '',
     description: '',
   });
 
@@ -123,7 +122,6 @@ export default function Payloads() {
       name: '',
       type: '',
       mass_kg: '',
-      orbit: '',
       description: '',
     });
     setEditingItem(null);
@@ -136,7 +134,6 @@ export default function Payloads() {
       name: formData.name,
       type: formData.type,
       mass_kg: formData.mass_kg ? parseFloat(formData.mass_kg) : null,
-      orbit: formData.orbit || null,
       description: formData.description || null,
     };
 
@@ -154,7 +151,6 @@ export default function Payloads() {
       name: item.name,
       type: item.type,
       mass_kg: item.mass_kg?.toString() || '',
-      orbit: item.orbit || '',
       description: item.description || '',
     });
     setIsDialogOpen(true);
@@ -169,7 +165,7 @@ export default function Payloads() {
       label: 'Mass',
       render: (val: number) => (val ? `${val} kg` : '-'),
     },
-    { key: 'orbit', label: 'Orbit' },
+
     { key: 'launch_id', label: 'Launch ID' },
   ];
 
@@ -278,18 +274,7 @@ export default function Payloads() {
                         className="bg-input border-border/50"
                       />
                     </div>
-                    <div>
-                      <Label htmlFor="orbit">Orbit</Label>
-                      <Input
-                        id="orbit"
-                        value={formData.orbit}
-                        onChange={(e) =>
-                          setFormData({ ...formData, orbit: e.target.value })
-                        }
-                        placeholder="e.g., LEO, GEO"
-                        className="bg-input border-border/50"
-                      />
-                    </div>
+
                   </div>
 
                   <div>
