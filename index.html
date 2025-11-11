@@ -43,7 +43,7 @@
           .catch(err => {
             console.error("Error connecting to Express server:", err);
             const messageDiv = document.getElementById("api-message");
-            messageDiv.textContent = "⚠️ Could not connect to backend server!";
+            messageDiv.textContent = "";
           });
       });
     </script>

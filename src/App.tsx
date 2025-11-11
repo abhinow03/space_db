@@ -17,6 +17,8 @@ import Payloads from "./pages/Payloads";
 import CrewAssignments from "./pages/CrewAssignments";
 import Graph from "./pages/Graph";
 import NotFound from "./pages/NotFound";
+import DatabaseInfo from '@/pages/DatabaseInfo';
+
 
 const queryClient = new QueryClient();
 
@@ -39,6 +41,7 @@ const App = () => (
             <Route path="/launches" element={<Launches />} />
             <Route path="/payloads" element={<Payloads />} />
             <Route path="/crew-assignments" element={<CrewAssignments />} />
+            <Route path="/database-info" element={<DatabaseInfo />} />
             <Route path="/graph" element={<Graph />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

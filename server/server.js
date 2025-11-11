@@ -371,6 +371,31 @@ app.post('/api/missions/proc', async (req, res) => {
   }
 });
 
+app.post('/api/missions/:id/complete', async (req, res) => {
+  try {
+    const { end_date } = req.body;
+    await dbPool.query('CALL complete_mission(?, ?)', [req.params.id, end_date || null]);
+    res.json({ success: true, message: 'Mission completed successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/crew_assignments/proc', async (req, res) => {
+  try {
+    const { mission_id, crew_member_id, role, assignment_date } = req.body;
+    await dbPool.query('CALL assign_crew_to_mission(?, ?, ?, ?)', [
+      mission_id,
+      crew_member_id,
+      role || null,
+      assignment_date || null
+    ]);
+    res.status(201).json({ success: true, message: 'Crew assigned via procedure' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 /* Call stored procedure add_launch(p_mission_id, p_variant_id, p_h_name, p_launch_date, p_launch_site, p_outcome) */
 app.post('/api/launches/proc', async (req, res) => {
   console.log('POST /api/launches/proc body:', req.body);

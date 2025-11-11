@@ -10,7 +10,8 @@ import {
   ClipboardList, 
   UserCog, 
   Factory, 
-  Network 
+  Network,
+  Database
 } from 'lucide-react';
 import { useRole } from '@/contexts/RoleContext';
 
@@ -28,6 +29,7 @@ export default function Sidebar() {
     { path: '/payloads', label: 'Payloads', icon: PackagePlus, roles: ['admin', 'scientist', 'viewer'] },
     { path: '/crew-assignments', label: 'Assignments', icon: UserCog, roles: ['admin', 'scientist', 'viewer'] },
     { path: '/graph', label: 'Mission Graph', icon: Network, roles: ['admin', 'scientist', 'viewer'] },
+    { path: '/database-info', label: 'Database Info', icon: Database, roles: ['admin', 'scientist', 'viewer'] },
   ];
 
   return (
